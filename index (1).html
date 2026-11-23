@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>いきものずかん</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/tabler-icons.min.css">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Maru Gothic ProN", "BIZ UDGothic", "Yu Gothic", sans-serif;
+    background: #FFFBF2;
+    color: #3A3A3A;
+    -webkit-text-size-adjust: 100%;
+  }
+  #app { max-width: 100%; margin: 0 auto; padding: 16px 16px 60px; }
+
+  /* ===== 起動画面（表紙） ===== */
+  #splash-screen {
+    position: fixed;
+    inset: 0;
+    background: #FFFBF2;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+  }
+  #splash-screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* 本のシーン */
+  #book-scene {
+    width: min(360px, 88vw);
+    perspective: 1100px;
+    position: relative;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 表紙（めくれるページ） */
+  #cover {
+    width: 100%;
+    height: min(480px, 118vw);
+    position: relative;
+    transform-style: preserve-3d;
+    transform-origin: left center;
+    transition: transform 0.85s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+    border-radius: 4px 16px 16px 4px;
+    will-change: transform;
+  }
+  #book-scene.is-open #cover {
+    transform: rotateY(-162deg);
+  }
+
+  /* 表紙 面 */
+  .cover-front {
+    position: absolute;
+    inset: 0;
+    background: #2E7D32;
+    border-radius: 4px 16px 16px 4px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    box-shadow: 5px 0 24px rgba(0,0,0,0.28);
+    overflow: hidden;
+  }
+  .cover-front::before {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    border: 2px solid rgba(255,255,255,0.22);
+    border-radius: 2px 12px 12px 2px;
+    pointer-events: none;
+  }
+  /* 表紙の光沢 */
+  .cover-gloss {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 55%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 100%);
+    border-radius: 4px 16px 0 0;
+    pointer-events: none;
+  }
+
+  .cover-emoji {
+    font-size: clamp(56px, 16vw, 80px);
+    line-height: 1;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.3));
+    position: relative;
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-6px); }
+  }
+  .cover-title {
+    color: #fff;
+    font-size: clamp(20px, 6vw, 28px);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.35);
+    position: relative;
+  }
+  .cover-sub {
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    position: relative;
+  }
+  .cover-badge {
+    margin-top: 12px;
+    background: rgba(255,255,255,0.2);
+    border: 1.5px solid rgba(255,255,255,0.4);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 20px;
+    border-radius: 999px;
+    letter-spacing: 0.08em;
+    position: relative;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
+  }
+
+  /* 表紙の裏面 */
+  .cover-back {
+    position: absolute;
+    inset: 0;
+    background: #f0ebe0;
+    border-radius: 16px 4px 4px 16px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: rotateY(180deg);
+  }
+
+  /* 本の背表紙 */
+  #spine {
+    position: absolute;
+    left: 0;
+    top: 4px;
+    bottom: 4px;
+    width: 16px;
+    background: #1B5E20;
+    border-radius: 4px 0 0 4px;
+    z-index: 5;
+  }
+
+  /* 本の中身（表紙の下に見える） */
+  #book-content {
+    position: absolute;
+    inset: 0;
+    background: #FFFBF2;
+    border-radius: 4px 16px 16px 4px;
+    border: 1.5px solid #E5E1D5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    z-index: 1;
+  }
+  .inner-label {
+    font-size: 13px;
+    color: #888780;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .inner-dots {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .inner-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  /* ===== 光フラッシュ ===== */
+  #flash {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(255,248,200,0.95) 0%, rgba(255,255,255,0) 65%);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 1100;
+    transition: opacity 0.12s;
+  }
+  #flash.on { opacity: 1; }
+  #flash.off { opacity: 0; transition: opacity 0.7s; }
+
+  /* キラキラパーティクル */
+  #sparkles {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1050;
+    overflow: hidden;
+  }
+  .sparkle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    opacity: 0;
+    animation: sparkle-anim 0.9s ease-out forwards;
+  }
+  @keyframes sparkle-anim {
+    0%   { opacity: 1; transform: translate(0,0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.2); }
+  }
+
+  /* ===== 既存スタイル ===== */
+  .header { display: flex; align-items: center; gap: 10px; padding: 14px 4px 18px; }
+  .header i { font-size: 30px; color: #D85A30; }
+  .header-title { font-size: 24px; font-weight: 700; }
+  .header-sub { font-size: 15px; color: #888780; margin-top: 8px; }
+
+  /* とじるボタン */
+  #close-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 8px 14px;
+    background: #fff;
+    border: 2px solid #E5E1D5;
+    border-radius: 16px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    color: #6B6A63;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #close-btn:active { transform: scale(0.94); background: #F1EFE8; }
+  #close-btn i { font-size: 22px; color: #D85A30; }
+
+  .filter-bar { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 14px; -webkit-overflow-scrolling: touch; }
+  .filter-chip {
+    flex-shrink: 0; padding: 8px 16px; border-radius: 999px; border: 2px solid #E5E1D5;
+    background: #fff; font-size: 14px; font-weight: 700; color: #6B6A63; cursor: pointer; white-space: nowrap;
+  }
+  .filter-chip.active { background: #D85A30; border-color: #D85A30; color: #fff; }
+
+  #card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+  .card {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 10px 8px 12px; border-radius: 20px; border: none; cursor: pointer;
+    font-family: inherit; transition: transform 0.1s; overflow: hidden;
+  }
+  .card:hover { transform: translateY(-6px); box-shadow: 0 8px 20px rgba(0,0,0,0.10); transition: transform 0.2s, box-shadow 0.2s; }
+  .card:active { transform: scale(0.96) translateY(-2px); }
+  .card .img-wrap {
+    width: 100%; height: 84px; display: flex; align-items: center; justify-content: center;
+  }
+  .card .img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .card .img-wrap i { font-size: 36px; }
+  .card .kana { font-size: 11px; opacity: 0.8; font-weight: 700; }
+  .card .name { font-size: 16px; font-weight: 700; }
+
+  #detail-view { display: none; }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px;
+    padding: 10px 16px; background: #fff; border: 2px solid #E5E1D5; border-radius: 999px;
+    font-size: 15px; font-weight: 700; color: #6B6A63; cursor: pointer; font-family: inherit;
+  }
+  .detail-hero { display: flex; align-items: center; gap: 16px; padding: 18px 22px; border-radius: 24px; margin-bottom: 14px; }
+  .detail-hero .icon-wrap {
+    width: 76px; height: 76px; border-radius: 16px; background: rgba(255,255,255,0.55);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;
+  }
+  .detail-hero .icon-wrap img { width: 100%; height: 100%; object-fit: cover; }
+  .detail-hero i { font-size: 38px; }
+  .detail-hero .kana { font-size: 14px; font-weight: 700; opacity: 0.85; }
+  .detail-hero .name { font-size: 28px; font-weight: 700; }
+
+  .section-card { background: #fff; border: 2px solid #F0EEE3; border-radius: 20px; padding: 16px 18px; margin-bottom: 10px; }
+  .section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .section-head i { font-size: 20px; }
+  .section-head span { font-size: 16px; font-weight: 700; }
+  .section-card p { font-size: 16px; line-height: 1.9; margin: 0; }
+  ruby rt { font-size: 0.55em; color: #888780; }
+
+  ::-webkit-scrollbar { height: 6px; }
+  ::-webkit-scrollbar-thumb { background: #E5E1D5; border-radius: 3px; }
+
+  /* 図鑑フェードイン */
+  #app {
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  #app.visible {
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+
+<!-- 光フラッシュ -->
+<div id="flash"></div>
+<!-- キラキラ -->
+<div id="sparkles"></div>
+
+<!-- 起動画面 -->
+<div id="splash-screen">
+  <div id="book-scene" onclick="openZukan()" role="button" aria-label="いきものずかんをひらく">
+    <div id="spine"></div>
+    <div id="book-content">
+      <div class="inner-label">がっこうで そだてられる いきものたち</div>
+      <div class="inner-dots">
+        <div class="inner-dot" style="background:#EAF3DE;border:1.5px solid #C0DD97;"></div>
+        <div class="inner-dot" style="background:#E6F1FB;border:1.5px solid #B5D4F4;"></div>
+        <div class="inner-dot" style="background:#FCEBEB;border:1.5px solid #F7C1C1;"></div>
+        <div class="inner-dot" style="background:#F1EFE8;border:1.5px solid #D3D1C7;"></div>
+      </div>
+    </div>
+    <div id="cover">
+      <div class="cover-front">
+        <div class="cover-gloss"></div>
+        <div class="cover-emoji">📖</div>
+        <div class="cover-title">いきものずかん</div>
+        
+        <div class="cover-badge">タップして ひらく ✨</div>
+      </div>
+      <div class="cover-back"></div>
+    </div>
+  </div>
+</div>
+
+<!-- メイン図鑑 -->
+<div id="app">
+  <div id="list-view">
+    <div class="header">
+      <i class="ti ti-paw"></i>
+      <div>
+        <div class="header-title">いきもの ずかん</div>
+        <div class="header-sub">いきものを タップして くわしく しらべよう</div>
+      </div>
+      <button id="close-btn" onclick="closeZukan()" aria-label="ずかんをとじる">
+        <i class="ti ti-book"></i>
+        ずかんを とじる
+      </button>
+    </div>
+    <div class="filter-bar" id="filter-bar"></div>
+    <div id="card-grid"></div>
+  </div>
+  <div id="detail-view"></div>
+</div>
+
+<script>
+// ===== 閉じる演出 =====
+function closeZukan() {
+  const scene = document.getElementById('book-scene');
+  const splash = document.getElementById('splash-screen');
+  const appEl = document.getElementById('app');
+
+  // 図鑑をフェードアウト
+  appEl.classList.remove('visible');
+
+  setTimeout(() => {
+    // スプラッシュを再表示（表紙が開いた状態で）
+    splash.classList.remove('hidden');
+
+    // すこし待ってから表紙を逆回転で閉じる
+    setTimeout(() => {
+      scene.classList.remove('is-open');
+    }, 80);
+  }, 350);
+}
+
+// ===== 起動演出 =====
+function openZukan() {
+  const scene = document.getElementById('book-scene');
+  const flash = document.getElementById('flash');
+  const splash = document.getElementById('splash-screen');
+  const appEl = document.getElementById('app');
+
+  if (scene.classList.contains('is-open')) return;
+  scene.classList.add('is-open');
+
+  // フラッシュ光
+  flash.classList.add('on');
+  showSparkles();
+
+  setTimeout(() => {
+    flash.classList.remove('on');
+    flash.classList.add('off');
+  }, 160);
+
+  // 表紙が十分めくれたら図鑑を表示
+  setTimeout(() => {
+    splash.classList.add('hidden');
+    appEl.classList.add('visible');
+  }, 700);
+}
+
+// キラキラパーティクル
+function showSparkles() {
+  const container = document.getElementById('sparkles');
+  const colors = ['#FFD700','#FF6B6B','#4FC3F7','#81C784','#FFB74D','#CE93D8'];
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  for (let i = 0; i < 22; i++) {
+    const s = document.createElement('div');
+    s.className = 'sparkle';
+    const angle = (Math.PI * 2 / 22) * i + Math.random() * 0.4;
+    const dist = 60 + Math.random() * 140;
+    const tx = Math.cos(angle) * dist;
+    const ty = Math.sin(angle) * dist;
+    const size = 5 + Math.random() * 7;
+    s.style.cssText = `
+      left:${cx}px; top:${cy}px;
+      width:${size}px; height:${size}px;
+      background:${colors[i % colors.length]};
+      --tx:${tx}px; --ty:${ty}px;
+      animation-delay:${Math.random() * 0.1}s;
+    `;
+    container.appendChild(s);
+    setTimeout(() => s.remove(), 1100);
+  }
+}
+
+// ===== 図鑑データ =====
+const images = {
+  kabutomushi: "https://i.imgur.com/pJjEjSB.png",
+  kuwagata: "https://i.imgur.com/VCBnbrR.png",
+  agehacho: "https://i.imgur.com/pExENih.png",
+  monshirocho: "https://i.imgur.com/aT1kEDN.png",
+  monkicho: "https://i.imgur.com/ucySJ96.png",
+  amenbo: "https://i.imgur.com/gONbZH9.png",
+  yago: "https://i.imgur.com/vbyRG8y.png",
+  kanabun: "https://i.imgur.com/IhD4qxo.png",
+  imori: "https://i.imgur.com/v4xk88N.png",
+  kanahebi: "https://i.imgur.com/DMZlfKY.png",
+  yamori: "https://i.imgur.com/yHWlYDY.png",
+  tentoumushi: "https://i.imgur.com/cZUCJcT.png",
+  zarigani: "https://i.imgur.com/8uMBPi2.png",
+  kame: "https://i.imgur.com/uXCYhrp.png",
+  medaka: "https://i.imgur.com/Cf3It6g.png",
+  ari: "https://i.imgur.com/bH89mq1.png",
+  katatsumuri: "https://i.imgur.com/3xRvQK2.png",
+  mimizu: "https://i.imgur.com/pGAXrqJ.png",
+  kamikiri: "https://i.imgur.com/5ynAI3S.png",
+  shijimicho: "https://i.imgur.com/i7KJaKw.png",
+  ebi: "https://i.imgur.com/yW1eqlE.png",
+  korogi: "https://i.imgur.com/b8Ga8oV.png",
+  batta: "https://i.imgur.com/ayOuKK4.png",
+  kamakiri: "https://i.imgur.com/UUzkw7Z.png",
+  tokage: "https://i.imgur.com/fBZX8SA.png",
+  dangomushi: "https://i.imgur.com/47PrVbH.png",
+};
+
+const data = [
+  { key:"yamori", name:"ヤモリ", kana:"やもり", group:"とかげ", color:"green", icon:"ti-lizard",
+    sumika:"[家|いえ]の[壁|かべ]や[窓|まど]の[近|ちか]く、[木|き]の[皮|かわ]の[下|した]などに すんでいます。[夜|よる]、[電灯|でんとう]の[近|ちか]くに[虫|むし]を[食|た]べに きます。",
+    tabemono:"[蛾|が]や[蜘蛛|くも]などの[小|ちい]さな[虫|むし]を たべます。[舌|した]ではなく[歯|は]で[虫|むし]を つかまえます。",
+    karada:"[足|あし]の[裏|うら]に[小|ちい]さな[毛|け]がたくさんあり、つるつるの[壁|かべ]や ガラスにも くっつくことができます。[体|からだ]は うろこで おおわれています。",
+    sodachi:"たまご から うまれて、[少|すこ]しずつ[大|おお]きく なります。[尻尾|しっぽ]を[切|き]られても また[生|は]えてくる ことがあります。",
+    osewa:"[隠|かく]れる[場所|ばしょ]を[用意|ようい]してあげること。エサ[用|よう]の[虫|むし]を きらさないこと。[乾燥|かんそう]しすぎないよう[霧吹|きりふ]きで[水分|すいぶん]を あげましょう。" },
+
+  { key:"imori", name:"イモリ", kana:"いもり", group:"とかげ", color:"green", icon:"ti-droplet",
+    sumika:"[田|た]んぼや[池|いけ]、[小川|おがわ]など[水|みず]の きれいな ところに すんでいます。[水中|すいちゅう]と[陸|りく]の[両方|りょうほう]で くらせます。",
+    tabemono:"[赤虫|あかむし]や[小|ちい]さな[虫|むし]、メダカの[餌|えさ]などを たべます。",
+    karada:"おなかが あかい[色|いろ]を しているのが とくちょうです。[皮膚|ひふ]は しめっていて つるつるしています。ヤモリ([は虫類|はちゅうるい])とは ちがう なかま([両生類|りょうせいるい])です。",
+    sodachi:"たまご を[水草|みずくさ]に[産|う]みつけ、[幼生|ようせい]（エラで[呼吸|こきゅう]）から せい[体|たい]に そだちます。",
+    osewa:"[水|みず]を きれいに[保|たも]つこと。[陸|りく]に[上|あ]がれる[場所|ばしょ]も[用意|ようい]すること。フタを しっかり しめて[逃|に]げないように しましょう。" },
+
+  { key:"kanahebi", name:"カナヘビ", kana:"かなへび", group:"とかげ", color:"green", icon:"ti-lizard",
+    sumika:"[草|くさ]むらや[庭|にわ]、[石垣|いしがき]の[隙間|すきま]などに すんでいます。[日|ひ]あたりの よい ばしょを このみます。",
+    tabemono:"バッタや クモなどの[小|ちい]さな[虫|むし]を たべます。",
+    karada:"[体|からだ]は[茶色|ちゃいろ]っぽく、しっぽが[体|からだ]の[半分|はんぶん]いじょうを しめるほど[長|なが]いです。あしが あるので ヘビとは ちがう なかまです。",
+    sodachi:"たまご から うまれ、だっぴを くりかえして[大|おお]きく なります。",
+    osewa:"[日光浴|にっこうよく]の できる[場所|ばしょ]を[作|つく]ること。[隠|かく]れがを[用意|ようい]すること。エサの[虫|むし]を きらさないように しましょう。" },
+
+  { key:"tokage", name:"トカゲ", kana:"とかげ", group:"とかげ", color:"green", icon:"ti-lizard",
+    sumika:"[石|いし]や[落|お]ち[葉|ば]の[下|した]、[庭先|にわさき]などに すんでいます。[日|ひ]なたを よく うごきまわります。",
+    tabemono:"アリや クモなどの[小|ちい]さな[虫|むし]を たべます。",
+    karada:"[体|からだ]に つやが あり きらきら[光|ひか]って[見|み]えます。カナヘビより[体|からだ]が[短|みじか]めで てかてかして います。",
+    sodachi:"たまご から うまれて、だっぴを くりかえしながら[大|おお]きく なります。こどもの ときは しっぽが あおく ひかって いることが あります。",
+    osewa:"[隠|かく]れがと[日光浴|にっこうよく]できる[場所|ばしょ]の[両方|りょうほう]を[用意|ようい]すること。[乾燥|かんそう]しすぎに[注意|ちゅうい]しましょう。" },
+
+  { key:"kame", name:"カメ", kana:"かめ", group:"みず", color:"blue", icon:"ti-turtle",
+    sumika:"[池|いけ]や[川|かわ]、[田|た]んぼなど[水|みず]の あるところに います。[陸|りく]に[上|あ]がって[日|ひ]なたぼっこも します。",
+    tabemono:"カメ[用|よう]の エサの ほかに、[小|ちい]さな[魚|さかな]や[水草|みずくさ]、[野菜|やさい]なども たべます。なんでも たべる どん[欲|よく]な せいかくです。",
+    karada:"せなかに かたい こうら（[甲羅|こうら]）が あり、[自分|じぶん]の[体|からだ]を まもります。[首|くび]と あしを こうらの[中|なか]に ひっこめる ことが できます。",
+    sodachi:"たまご から うまれて、すこしずつ こうらが[大|おお]きく そだちます。なん[十年|じゅうねん]も[生|い]きる しゅるいも います。",
+    osewa:"[水|みず]を きれいに たもつこと。[日|ひ]なたぼっこの できる ばしょを[用意|ようい]すること。[冬|ふゆ]は[動|うご]きが にぶく なることが あります。ミドリガメなど そとから きた カメは、ぜったいに そとの[川|かわ]や[池|いけ]に はなしては いけません。" },
+
+  { key:"zarigani", name:"ザリガニ", kana:"ざりがに", group:"みず", color:"blue", icon:"ti-anchor",
+    sumika:"[田|た]んぼや[池|いけ]、[小川|おがわ]など、どろや[水草|みずくさ]の ある しずかな[水|みず]の[中|なか]に います。",
+    tabemono:"[小|ちい]さな[魚|さかな]や[虫|むし]、[水草|みずくさ]など なんでも たべます。にぼしでも 元気に そだちます。",
+    karada:"[大|おお]きな はさみが 2[本|ほん] あり、エサを つかんだり[身|み]を まもったり します。しっぽを[使|つか]って すばやく うしろに およげます。",
+    sodachi:"たまご から[子|こ]ザリガニに なり、だっぴを くりかえして[大|おお]きく なります。",
+    osewa:"[水|みず]を きれいに する こと。[隠|かく]れる ばしょを[用意|ようい]すること。だっぴの[後|あと]は[体|からだ]が やわらかいので そっと しておきましょう。" },
+
+  { key:"ebi", name:"エビ", kana:"えび", group:"みず", color:"blue", icon:"ti-anchor",
+    sumika:"[川|かわ]や[池|いけ]の[水草|みずくさ]の[陰|かげ]に すんでいます。きれいな[水|みず]を このみます。",
+    tabemono:"[水|みず]の[中|なか]の[小|ちい]さな[生|い]き[物|もの]や コケ、エビ[用|よう]の エサを たべます。",
+    karada:"[体|からだ]は とうめいに[近|ちか]く、ひげが[長|なが]いのが とくちょうです。[小|ちい]さな あしが たくさん あります。",
+    sodachi:"たまご を おなかに かかえて まもり、[子|こ]エビが うまれます。だっぴを くりかえして[大|おお]きく なります。",
+    osewa:"[水質|すいしつ]を きれいに たもつこと。コケが はえる かんきょうを つくると エサにも なります。" },
+
+  { key:"medaka", name:"メダカ", kana:"めだか", group:"みず", color:"blue", icon:"ti-fish",
+    sumika:"[川|かわ]の[流|なが]れが ゆるやかな ところや、[田|た]んぼ、[池|いけ]に います。[水草|みずくさ]の ある しずかな[水面|すいめん]を およぐのが すきです。",
+    tabemono:"[水|みず]の[中|なか]の[小|ちい]さな[虫|むし]や プランクトンを たべます。メダカ[用|よう]の エサを[少|すこ]しずつ あげます。",
+    karada:"[体|からだ]は[小|ちい]さくて[細長|ほそなが]く、[目|め]が[大|おお]きいのが とくちょうです。ひれで およぎ、えらで こきゅうします。",
+    sodachi:"たまご（[水草|みずくさ]に つく）から[子|こ]メダカが かえり、[少|すこ]しずつ[大|おお]きく なります。あたたかい きせつに たまごを[多|おお]く[産|う]みます。",
+    osewa:"[水温|すいおん]の[変化|へんか]に[気|き]を つけること。エサの あげすぎに[注意|ちゅうい]（[水|みず]が よごれます）。[水草|みずくさ]を[入|い]れると たまごを[産|う]みやすく なります。" },
+
+  { key:"amenbo", name:"アメンボ", kana:"あめんぼ", group:"みず", color:"blue", icon:"ti-droplet",
+    sumika:"[池|いけ]や[小川|おがわ]の[水面|すいめん]に います。[流|なが]れの すくない しずかな[水|みず]を このみます。",
+    tabemono:"[水面|すいめん]に[落|お]ちた[小|ちい]さな[虫|むし]の しるを すいます。",
+    karada:"あしの[先|さき]に[細|こま]かい[毛|け]が あり、[水|みず]に しずまずに スイスイ うごけます。[体|からだ]は ほそながい です。",
+    sodachi:"たまご から うまれ、だっぴを くりかえして せい[虫|ちゅう]に なります。",
+    osewa:"[広|ひろ]めの[水面|すいめん]を[用意|ようい]すること。[油|あぶら]やせっけんが[水|みず]に まじると[浮|う]けなく なるので[注意|ちゅうい]。" },
+
+  { key:"yago", name:"ヤゴ", kana:"やご", group:"みず", color:"blue", icon:"ti-bug",
+    sumika:"[池|いけ]や[田|た]んぼ、[川|かわ]の しずかな ところに います。プールの[水|みず]の[中|なか]でも[見|み]つかることが あります。",
+    tabemono:"アカムシなどの ちいさな[生|い]き[物|もの]を つかまえて たべる にくしょくです。",
+    karada:"[体|からだ]の おしりの ぶぶんに「えら」が あり、おしりから[水|みず]を すいこんで こきゅうします。あしが 6ぽん あり、エサを とる ための するどい くちを もっています。",
+    sodachi:"たまご から うまれ、だっぴを くりかえして[大|おお]きく なります。しゅるいに よって せい[虫|ちゅう]（トンボ）に なるまで[数|すう][か月|かげつ]から なん[年|ねん]も かかります。さいごは[水|みず]から[出|で]て うかし[化|か]し、トンボに なります。",
+    osewa:"そのまま[手|て]で さわると よわって しまうので、あみで そっと すくって つかまえましょう。エサ（アカムシなど）を きらさない こと。" },
+
+  { key:"katatsumuri", name:"カタツムリ", kana:"かたつむり", group:"りく", color:"gray", icon:"ti-snail",
+    sumika:"しめった[草|くさ]むらや、ブロックべいの しめった ばしょに います。[梅雨|つゆ]の じきに よく[見|み]かけます。",
+    tabemono:"[葉|は]っぱや コケ、にんじんなどの やさいを たべます。コンクリートを なめて カラの もとに することも あります。",
+    karada:"せなかに らせん[状|じょう]の カラを しょっています。[頭|あたま]に 2[本|ほん]の[長|なが]い[触角|しょっかく]が あり[先端|せんたん]に[目|め]が あります。",
+    sodachi:"たまご から うまれ、[少|すこ]しずつ カラと[体|からだ]が[大|おお]きく なります。",
+    osewa:"しめりけを たもつこと（かわくと げん[気|き]が なくなります）。カラの もとに なる カルシウム（たまごの から など）を あげましょう。" },
+
+  { key:"tentoumushi", name:"てんとうむし", kana:"てんとうむし", group:"りく", color:"gray", icon:"ti-bug",
+    sumika:"[花畑|はなばたけ]や[野原|のはら]、アブラムシの いる[植物|しょくぶつ]の[葉|は]の[上|うえ]に います。",
+    tabemono:"アブラムシという[小|ちい]さな[虫|むし]を たくさん たべます。やさいを まもってくれる[益虫|えきちゅう]です。",
+    karada:"はねに[模様|もよう]が あり、しゅるいによって[点|てん]の[数|かず]が ちがいます。[危険|きけん]を かんじると あしの ふしから きいろくて くさい えきを 出すことが あります。",
+    sodachi:"たまご → よう[虫|ちゅう] → さなぎ → せい[虫|ちゅう]の じゅんに そだちます。よう[虫|ちゅう]も アブラムシを たべます。",
+    osewa:"アブラムシが いる[植物|しょくぶつ]を[用意|ようい]すること。せまい ケースに たくさん[入|い]れすぎないように しましょう。" },
+
+  { key:"batta", name:"バッタ", kana:"ばった", group:"りく", color:"gray", icon:"ti-leaf",
+    sumika:"[野原|のはら]や[草|くさ]むら、[土手|どて]などに います。[草|くさ]の[多|おお]い ばしょを このみます。",
+    tabemono:"イネ[科|か]の[植物|しょくぶつ]の[葉|は]っぱを よく たべます。",
+    karada:"うしろあしが[太|ふと]くて[長|なが]く、[大|おお]きく ジャンプ できます。はねを[使|つか]って[飛|と]ぶ ことも できます。",
+    sodachi:"[土|つち]の[中|なか]に たまごを[産|う]みます。たまご から よう[虫|ちゅう]（[幼虫|ようちゅう)）が うまれ、だっぴを くりかえして せい[虫|ちゅう]に なります（さなぎには ならない なかま）。",
+    osewa:"エサの[草|くさ]を きらさない こと。ケースは[広|ひろ]めに して ジャンプ できる スペースを つくりましょう。" },
+
+  { key:"korogi", name:"コオロギ", kana:"こおろぎ", group:"りく", color:"gray", icon:"ti-bug",
+    sumika:"[草|くさ]むらや[石|いし]の[下|した]、[落|お]ち[葉|ば]の[下|した]などに います。[夜行性|やこうせい]で[夜|よる]に よく うごきます。",
+    tabemono:"[植物|しょくぶつ]の[葉|は]っぱや、[他|ほか]の[虫|むし]の[死|し]がいなど なんでも たべます。にぼしや やさいでも かえます。",
+    karada:"オスは はねを こすり[合|あ]わせて「リーンリーン」と[鳴|な]きます。しょっかくが[長|なが]いのも とくちょうです。",
+    sodachi:"たまご から よう[虫|ちゅう]が うまれ、だっぴを くりかえして せい[虫|ちゅう]に なります。",
+    osewa:"[隠|かく]れがを[用意|ようい]すること。[夜|よる]に[鳴|な]き[声|ごえ]が きこえることが あるので かう[場所|ばしょ]を よく かんがえましょう。" },
+
+  { key:"kamakiri", name:"カマキリ", kana:"かまきり", group:"りく", color:"gray", icon:"ti-leaf",
+    sumika:"[草|くさ]むらや[木|き]の[葉|は]の[上|うえ]に います。エサに なる[虫|むし]の[多|おお]い ばしょに います。",
+    tabemono:"バッタや ハエなど、ほかの[小|ちい]さな[虫|むし]を つかまえて たべます。",
+    karada:"[前足|まえあし]が かまの[形|かたち]を していて、エサを すばやく つかまえます。[首|くび]を くるっと まわして うしろも[見|み]られます。",
+    sodachi:"たまご（あわのような たまごの かたまり）から よう[虫|ちゅう]が うまれ、だっぴを くりかえして せい[虫|ちゅう]に なります。",
+    osewa:"いきた[虫|むし]を エサに する ひつようが あります。[共食|ともぐ]いを することが あるので 1ぴきずつ かうのが おすすめです。" },
+
+  { key:"ari", name:"アリ", kana:"あり", group:"りく", color:"gray", icon:"ti-bug",
+    sumika:"[土|つち]の[中|なか]に あなを ほって、アリの[巣|す]を つくって すんでいます。なかまと きょうりょくして くらします。",
+    tabemono:"あまい もの（じゅえきや おかしの くず）や、ほかの[虫|むし]の[死|し]がいなどを たべます。",
+    karada:"[頭|あたま]・[胸|むね]・はらの 3つに わかれた[体|からだ]を しています。なかまと においで[会話|かいわ]を します。",
+    sodachi:"たまご → よう[虫|ちゅう] → さなぎ → せい[虫|ちゅう]の じゅんに そだちます。じょおうアリが たまごを うみ、はたらきアリが こそだてを します。",
+    osewa:"アリの[巣|す]の かんさつケースを[使|つか]うと くらしが よく わかります。エサを[定期的|ていきてき]に あげましょう。" },
+
+  { key:"dangomushi", name:"ダンゴムシ", kana:"だんごむし", group:"りく", color:"gray", icon:"ti-circle",
+    sumika:"[石|いし]や[植木鉢|うえきばち]の[下|した]、しめった[落|お]ち[葉|ば]の[下|した]に います。くらくて しめった ばしょが すきです。",
+    tabemono:"[落|お]ち[葉|ば]や[枯|か]れた[草|くさ]を たべます。じめんを きれいに する やくわりも しています。",
+    karada:"さわると からだを まるめて だんごのように なります。あしは ぜんぶで 14ほん あり、[体|からだ]は かたい から（[外骨格|がいこっかく]）で おおわれています。じつは エビや カニの なかまです。",
+    sodachi:"たまご を おなかの[袋|ふくろ]で まもり、[子|こ]ダンゴムシが うまれます。だっぴを くりかえして[大|おお]きく なります。",
+    osewa:"しめった[土|つち]と[落|お]ち[葉|ば]を ケースに[入|い]れること。かわきすぎないように きを つけましょう。" },
+
+  { key:"mimizu", name:"ミミズ", kana:"みみず", group:"りく", color:"gray", icon:"ti-circle",
+    sumika:"[土|つち]の[中|なか]に すんでいます。しめった やわらかい[土|つち]を このみます。",
+    tabemono:"[土|つち]の[中|なか]の[落|お]ち[葉|ば]や[栄養分|えいようぶん]を たべます。たべた[後|あと]の フンは よい[土|つち]に なります。",
+    karada:"あしや[目|め]が なく、ほそ[長|なが]い[体|からだ]を くねらせて うごきます。[体|からだ]は たくさんの ふしに わかれています。",
+    sodachi:"たまご（まゆのような[形|かたち]）から[子|こ]ミミズが うまれます。",
+    osewa:"しめった[土|つち]を きらさない こと。[土|つち]を[豊|ゆた]かに してくれる たいせつな[生|い]き[物|もの]だと おぼえておきましょう。" },
+
+  { key:"kabutomushi", name:"カブトムシ", kana:"かぶとむし", group:"りく", color:"gray", icon:"ti-bug",
+    sumika:"クヌギや コナラの[木|き]が たくさん ある ぞうき[林|ばやし]に います。[木|き]の しるが[出|で]る ところに あつまります。",
+    tabemono:"[木|き]から[出|で]る あまい しる（[樹液|じゅえき]）を なめて たべます。よう[虫|ちゅう]の ときは[土|つち]（ふようど）を たべて そだちます。ゼリーや バナナでも かう ことが できます。",
+    karada:"オスには[大|おお]きな つの（[角|つの]）が あります。[体|からだ]は かたい から（から）で おおわれ、はねを[使|つか]って[空|そら]を[飛|と]べます。",
+    sodachi:"たまご → よう[虫|ちゅう]（[土|つち]の[中|なか]で 1[年|ねん]くらい くらす）→ さなぎ → せい[虫|ちゅう]の じゅんに そだちます。",
+    osewa:"[土|つち]を しめらせて おくこと。エサ（ゼリー）を きらさない こと。[昼間|ひるま]は あまり[動|うご]かず[夜|よる]に[元気|げんき]に なります。" },
+
+  { key:"kuwagata", name:"クワガタ", kana:"くわがた", group:"りく", color:"gray", icon:"ti-bug",
+    sumika:"クヌギなどの[木|き]の しるが[出|で]る ところや、[木|き]の うろ（あな）に います。",
+    tabemono:"[木|き]の しる（[樹液|じゅえき]）を なめて たべます。よう[虫|ちゅう]の ときは[土|つち]（ふようど）を たべて そだちます。ゼリーでも かう ことが できます。",
+    karada:"オスは はさみのような[大|おお]あごを もっています。カブトムシより[体|からだ]が[平|ひら]たいのが とくちょうです。",
+    sodachi:"たまご → よう[虫|ちゅう]（[木|き]の[中|なか]や[土|つち]の[中|なか]で すごす）→ さなぎ → せい[虫|ちゅう]の じゅんに そだちます。よう[虫|ちゅう]の きかんが[長|なが]いです。",
+    osewa:"くさった[木|き]（マット）を ケースに[入|い]れること。エサを きらさないこと。オス[同士|どうし]は けんかするので 1ぴきずつ かいましょう。" },
+
+  { key:"agehacho", name:"アゲハチョウ", kana:"あげはちょう", group:"そらとぶ", color:"red", icon:"ti-flower",
+    sumika:"ミカンや サンショウの[木|き]の あたりに います。[花|はな]の[多|おお]い[場所|ばしょ]を とびまわります。",
+    tabemono:"よう[虫|ちゅう]は ミカンの[葉|は]っぱを たべ、せい[虫|ちゅう]に なると[花|はな]の みつを すいます。",
+    karada:"はねに きいろと くろの きれいな[模様|もよう]が あります。よう[虫|ちゅう]は はじめ くろっぽく、[育|そだ]つと[緑色|みどりいろ]に なります。",
+    sodachi:"たまご → よう[虫|ちゅう] → さなぎ → せい[虫|ちゅう]（チョウ）の じゅんに そだちます。さなぎから かわった[姿|すがた]で でてきます。",
+    osewa:"よう[虫|ちゅう]の エサに なる[葉|は]っぱ（ミカンなど）を きらさない こと。さなぎに なったら そっと しておきましょう。" },
+
+  { key:"monshirocho", name:"モンシロチョウ", kana:"もんしろちょう", group:"そらとぶ", color:"red", icon:"ti-flower",
+    sumika:"キャベツばたけや、アブラナ[科|か]の[植物|しょくぶつ]の あるところに います。",
+    tabemono:"よう[虫|ちゅう]は キャベツや[菜|な]の[花|はな]の[葉|は]を たべ、せい[虫|ちゅう]は[花|はな]の みつを すいます。",
+    karada:"はねは しろくて[黒|くろ]い もようが あります。はねは ぜんぶで 4まい あります。よう[虫|ちゅう]は あおむしと よばれ みどり[色|いろ]を しています。",
+    sodachi:"たまご（[葉|は]の うらに[産|う]む）→ あおむし（よう[虫|ちゅう]）→ さなぎ → せい[虫|ちゅう]の じゅんに そだちます。",
+    osewa:"よう[虫|ちゅう]の エサ（キャベツの[葉|は]）を きらさない こと。さなぎの[時期|じき]は[動|うご]かさないように しましょう。" },
+
+  { key:"monkicho", name:"モンキチョウ", kana:"もんきちょう", group:"そらとぶ", color:"red", icon:"ti-flower",
+    sumika:"[河原|かわら]や[野原|のはら]、シロツメクサの はえる[場所|ばしょ]に います。",
+    tabemono:"よう[虫|ちゅう]は シロツメクサなどの[葉|は]を たべ、せい[虫|ちゅう]は[花|はな]の みつを すいます。",
+    karada:"はねは きいろや オレンジ[色|いろ]を しています。モンシロチョウと にていますが はねの[色|いろ]が ちがいます。",
+    sodachi:"たまご → よう[虫|ちゅう] → さなぎ → せい[虫|ちゅう]の じゅんに そだちます。",
+    osewa:"よう[虫|ちゅう]の エサ（シロツメクサなど）を きらさない こと。" },
+
+  { key:"shijimicho", name:"シジミチョウ", kana:"しじみちょう", group:"そらとぶ", color:"red", icon:"ti-flower",
+    sumika:"[野原|のはら]や こうえん、[道端|みちばた]の[草|くさ]むらに います。とても[身近|みぢか]な チョウです。",
+    tabemono:"よう[虫|ちゅう]は カタバミなどの[葉|は]を たべ、せい[虫|ちゅう]は[花|はな]の みつを すいます。",
+    karada:"はねが とても[小|ちい]さく、しじみ[貝|がい]に にているので この[名前|なまえ]が つきました。",
+    sodachi:"たまご → よう[虫|ちゅう] → さなぎ → せい[虫|ちゅう]の じゅんに そだちます。",
+    osewa:"よう[虫|ちゅう]の エサ（カタバミなど）を きらさない こと。[体|からだ]が とても[小|ちい]さいので やさしく あつかいましょう。" },
+
+  { key:"kanabun", name:"カナブン", kana:"かなぶん", group:"りく", color:"gray", icon:"ti-bug",
+    sumika:"クヌギなどの[木|き]の しるが[出|で]る ところに います。カブトムシや クワガタと[同|おな]じ ばしょで[見|み]られます。",
+    tabemono:"[木|き]の しる（[樹液|じゅえき]）を なめて たべます。",
+    karada:"[体|からだ]が きんぞくのように ぴかぴか[光|ひか]って[見|み]えます。はねを ひらかずに[飛|と]べるのが とくちょうです。",
+    sodachi:"たまご → よう[虫|ちゅう]（[腐葉土|ふようど]の[中|なか]で すごす）→ さなぎ → せい[虫|ちゅう]の じゅんに そだちます。",
+    osewa:"エサ（ゼリーなど）を きらさない こと。よう[虫|ちゅう]の ときは[腐葉土|ふようど]を[用意|ようい]しましょう。" },
+
+  { key:"kamikiri", name:"カミキリムシ", kana:"かみきりむし", group:"りく", color:"gray", icon:"ti-bug",
+    sumika:"[木|き]の みきや えだに います。[木|き]の[中|なか]に たまごを[産|う]みつけます。",
+    tabemono:"[木|き]の[葉|は]や[皮|かわ]、[花粉|かふん]などを たべます。よう[虫|ちゅう]は[木|き]の[中|なか]を たべすすみます。",
+    karada:"しょっかくが とても[長|なが]く、[体|からだ]より[長|なが]い しゅるいも います。あごの[力|ちから]が[強|つよ]く、[木|き]を かじる ことが できます。",
+    sodachi:"たまご → よう[虫|ちゅう]（[木|き]の[中|なか]で すごす）→ さなぎ → せい[虫|ちゅう]の じゅんに そだちます。",
+    osewa:"[木|き]の えだなど かじる ものを[用意|ようい]すること。あごの[力|ちから]が[強|つよ]いので さわるときは[注意|ちゅうい]しましょう。" },
+];
+
+const groupOrder = ["とかげ", "みず", "そらとぶ", "りく"];
+const groupLabel = { "とかげ":"トカゲグループ", "みず":"水グループ", "そらとぶ":"空とぶグループ", "りく":"りくグループ" };
+
+const ramp = {
+  green:  ["#EAF3DE","#27500A"], teal:   ["#E1F5EE","#085041"], coral:  ["#FAECE7","#712B13"],
+  blue:   ["#E6F1FB","#0C447C"], amber:  ["#FAEEDA","#633806"], pink:   ["#FBEAF0","#72243E"],
+  red:    ["#FCEBEB","#791F1F"], gray:   ["#F1EFE8","#444441"], purple: ["#EEEDFE","#3C3489"],
+};
+
+let activeFilter = "all";
+
+function ruby(text) {
+  return text.replace(/\[([^\|\]]+)\|([^\]]+)\]/g, '<ruby>$1<rt>$2</rt></ruby>');
+}
+
+const filterBar = document.getElementById('filter-bar');
+const allChip = document.createElement('button');
+allChip.className = 'filter-chip active';
+allChip.textContent = 'すべて';
+allChip.onclick = () => setFilter('all', allChip);
+filterBar.appendChild(allChip);
+
+groupOrder.forEach(g => {
+  const chip = document.createElement('button');
+  chip.className = 'filter-chip';
+  chip.textContent = groupLabel[g];
+  chip.onclick = () => setFilter(g, chip);
+  filterBar.appendChild(chip);
+});
+
+function setFilter(g, el) {
+  activeFilter = g;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderGrid();
+}
+
+function mediaHtml(d, size) {
+  if (images[d.key]) {
+    return `<img src="${images[d.key]}" alt="${d.name}" />`;
+  }
+  const [, fg] = ramp[d.color];
+  return `<i class="ti ${d.icon}" style="color:${fg}; font-size:${size}px;"></i>`;
+}
+
+function renderGrid() {
+  const grid = document.getElementById('card-grid');
+  grid.innerHTML = '';
+  let list = activeFilter === 'all' ? data : data.filter(d => d.group === activeFilter);
+  if (activeFilter === 'all') {
+    list = [...list].sort((a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group));
+  }
+  list.forEach(d => {
+    const [bg, fg] = ramp[d.color];
+    const card = document.createElement('button');
+    card.className = 'card';
+    card.setAttribute('aria-label', d.name + 'の くわしい ページを 見る');
+    card.style.background = bg;
+    card.innerHTML = `
+      <div class="img-wrap">${mediaHtml(d, 36)}</div>
+      <div class="kana" style="color:${fg};">${d.kana}</div>
+      <div class="name" style="color:${fg};">${d.name}</div>
+    `;
+    card.onclick = () => showDetail(d.key);
+    grid.appendChild(card);
+  });
+}
+renderGrid();
+
+const sections = ['sumika','tabemono','karada','sodachi','osewa'];
+const sectionIcon = { sumika:'ti-home', tabemono:'ti-bowl', karada:'ti-skeleton', sodachi:'ti-seedling', osewa:'ti-heart' };
+const sectionTitle = { sumika:'すみか', tabemono:'たべもの', karada:'からだの つくり', sodachi:'そだちかた', osewa:'おせわの ポイント' };
+
+function showDetail(key) {
+  const d = data.find(x => x.key === key);
+  const [bg, fg] = ramp[d.color];
+  document.getElementById('list-view').style.display = 'none';
+  const dv = document.getElementById('detail-view');
+  dv.style.display = 'block';
+
+  dv.innerHTML = `
+    <button class="back-btn" id="back-btn">
+      <i class="ti ti-arrow-left"></i> いちらんに もどる
+    </button>
+    <div class="detail-hero" style="background:${bg};">
+      <div class="icon-wrap">${mediaHtml(d, 38)}</div>
+      <div>
+        <div class="kana" style="color:${fg};">${d.kana}</div>
+        <div class="name" style="color:${fg};">${d.name}</div>
+      </div>
+    </div>
+    ${sections.map(s => `
+      <div class="section-card">
+        <div class="section-head">
+          <i class="${sectionIcon[s]} ti" style="color:${fg};"></i>
+          <span>${sectionTitle[s]}</span>
+        </div>
+        <p>${ruby(d[s])}</p>
+      </div>
+    `).join('')}
+  `;
+  document.getElementById('back-btn').onclick = () => {
+    document.getElementById('list-view').style.display = 'block';
+    dv.style.display = 'none';
+    window.scrollTo(0,0);
+  };
+  window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>
